@@ -7,25 +7,52 @@ import 'package:http/http.dart';
 class TransactionWebClient {
   Future<List<Transaction>> findAll() async {
     final Response response = await client
-        .get(Uri.http('191.13.114.152:8080', 'transactions'))
-        .timeout(Duration(seconds: 5));
+        .get(Uri.http(baseUrl, 'transactions'));
 
     final List<dynamic> decodedJson = jsonDecode(response.body);
     return decodedJson.map((dynamic json) => Transaction.fromJson(json)).toList();
   }
 
-  Future<Transaction> save(Transaction transaction) async {
+  Future<Transaction> save(Transaction transaction, String password) async {
     final String transactionJson = jsonEncode(transaction.toJson());
 
+    await Future.delayed(Duration(seconds: 2));
+
     final Response response = await client.post(
-        Uri.http('191.13.114.152:8080', 'transactions'),
+        Uri.http(baseUrl, 'transactions'),
         headers: {
           'Content-type': 'application/json',
-          'password': '1000',
+          'password': password,
         },
         body: transactionJson
     );
 
-    return Transaction.fromJson(jsonDecode(response.body));
+    if(response.statusCode == 200) {
+      return Transaction.fromJson(jsonDecode(response.body));
+    }
+
+    throw HttpException(_getMessage(response.statusCode));
   }
+
+  String _getMessage(int statusCode) {
+    if(_statusCodeResponses.containsKey(statusCode)) {
+        return _statusCodeResponses[statusCode];
+    }
+
+    return 'Unknown error';
+  }
+
+  // void _throwHttpError(int statusCode) => throw Exception(_statusCodeResponses[statusCode]);
+
+  static final Map<int, String> _statusCodeResponses = {
+    400 : 'there was an error submiting transaction.',
+    401 : 'authentication failed',
+    409 : 'transaction always exists'
+  };
+}
+
+class HttpException implements Exception {
+  final String message;
+
+  HttpException(this.message);
 }
